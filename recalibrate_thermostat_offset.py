@@ -56,7 +56,7 @@ class RecalibrateThermostatOffset(hass.Hass):
         return float(temperature.replace(',', '.'))
       time.sleep(0.5)
 
-  def _get_target_temperature(self, driver, entity_row):
+  def _get_target_temperature(self, entity_row):
     while True:
       temperature = entity_row.find_element(By.XPATH, ".//span[@class='v-temperature__display']").text
       if temperature:
@@ -108,24 +108,42 @@ class RecalibrateThermostatOffset(hass.Hass):
     self.log(f"Recalibrated '{thermostat_name}' to {self._get_fritz_temperature(driver)}")
 
   def _restore_target_temperature(self, driver, thermostat_name, target_temperature):
+    # handle groups
+    # naming schema:
+    # * single thermostats: "Heizung XZ"
+    # * thermostat groups:  "Heizung XZ"; single thermostats "Heizung XZ vorn" , "Heizung XZ hinten"
+    thermostat_base_name = thermostat_name if thermostat_name.count(' ') != 2 else thermostat_name[0: thermostat_name.rfind(' ')]
+
     # check for change to target temperature and possibly correct
     WebDriverWait(driver, self._timeout).until(EC.element_to_be_clickable((By.ID, "sh_control"))).click()
-    entity_row = WebDriverWait(driver, self._timeout).until(EC.presence_of_element_located((By.XPATH, f"//span[contains(text(),'{thermostat_name}')]/parent::div/parent::div")))
+    entity_row = WebDriverWait(driver, self._timeout).until(EC.presence_of_element_located((By.XPATH, f"//span[text()='{thermostat_base_name}']/parent::div/parent::div")))
 
-    if self._get_target_temperature(driver, entity_row) != target_temperature:
-      self.log(f"Target temperature of {self._get_target_temperature(driver, entity_row)} should be {target_temperature}")
+    if self._get_target_temperature(entity_row) != target_temperature:
+      self.log(f"Target temperature {self._get_target_temperature(entity_row)} of '{thermostat_base_name}' should be {target_temperature}")
+  
       buttons = entity_row.find_elements(By.XPATH, ".//button")
       button_down = buttons[1]
       button_up = buttons[2]
-      while self._get_target_temperature(driver, entity_row) < target_temperature:
+      while self._get_target_temperature(entity_row) < target_temperature:
         button_up.click()
         time.sleep(1)
-      while self._get_target_temperature(driver, entity_row) > target_temperature:
+      while self._get_target_temperature(entity_row) > target_temperature:
         button_down.click()
         time.sleep(1)
-      self.log(f"Target temperature restored to {target_temperature}")
+
+      # sometimes the temperature is 0.5° off for a certain time - wait until it is shown correctly again before reporting success
+      for x in range(60):
+        if self._get_target_temperature(entity_row) == target_temperature:
+          break
+        time.sleep(2)
+        self.log(f"Waiting for target temperature of '{thermostat_base_name}' to be {target_temperature} (currently {self._get_target_temperature(entity_row)})")
+
+      if self._get_target_temperature(entity_row) != target_temperature: # still wrong
+        raise RuntimeError(f"Target temperature of '{thermostat_base_name}' still not {target_temperature}: {self._get_target_temperature(entity_row)}")
+
+      self.log(f"Target temperature of '{thermostat_base_name}' restored to {self._get_target_temperature(entity_row)}")
     else:
-      self.log(f"Target temperature of {target_temperature} still valid, no restore required")
+      self.log(f"Target temperature {target_temperature} of '{thermostat_base_name}' still valid, no restore required")
 
   def _logout(self, driver):
     WebDriverWait(driver, self._timeout).until(EC.element_to_be_clickable((By.ID, "blueBarUserMenuIcon"))).click()
