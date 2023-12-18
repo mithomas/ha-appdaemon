@@ -131,7 +131,8 @@ class RecalibrateThermostatOffset(hass.Hass):
         button_down.click()
         time.sleep(1)
 
-      # sometimes the temperature is 0.5° off for a certain time - wait until it is shown correctly again before reporting success
+      # sometimes the temperature jumps back to 0.5° off for a certain time - wait until it is shown correctly again before reporting success
+      time.sleep(10)
       for x in range(60):
         if self._get_target_temperature(entity_row) == target_temperature:
           break
