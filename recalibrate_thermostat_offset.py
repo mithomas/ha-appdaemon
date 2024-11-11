@@ -85,7 +85,7 @@ class RecalibrateThermostatOffset(hass.Hass):
   def _navigate_to_device_details(self, driver, thermostat_name):
     # go to device overview
     WebDriverWait(driver, self._timeout).until(EC.element_to_be_clickable((By.ID, "sh_menu"))).click()
-    WebDriverWait(driver, self._timeout).until(EC.element_to_be_clickable((By.ID, "sh_dev"))).click()
+    WebDriverWait(driver, self._timeout).until(EC.element_to_be_clickable((By.ID, "sh_dev_group"))).click() 
     # go to device
     WebDriverWait(driver, self._timeout).until(EC.element_to_be_clickable((By.XPATH, f"//button[contains(@aria-label,'\"{thermostat_name}\" bearbeiten')]"))).click()
 
